@@ -1209,6 +1209,14 @@ function darkC(c){if(c._d)return c._d;const d=document.createElement('canvas');d
 /* ---------- batalla dibujada en un lienzo: tropas, restos, partículas y marcas en el piso ---------- */
 let BV=null;
 const btScale=()=>{const w=(GB+1)*btw,h=(GB*.5+2.3)*btw;return Math.min(LITE?1.5:3,(devicePixelRatio||1)*bz,Math.sqrt((LITE?2.2e6:9e6)/(w*h)))};
+/* tropas un poco más grandes que antes (los edificios pintados son grandes) y cámara que sigue a tu ejército en el celular */
+const UNS=1.35;
+function btCam(b){const sc=$('#btscene');if(!sc||!b||b.over||(b.dep&&!b.go)||sc.clientWidth>=700)return;const V=BV;if(performance.now()-(V.userT||0)<2500)return;
+ let n=0,sx=0,sy=0;for(const x of b.E)if(x.side===0&&x.hp>0&&!x.off&&!x.st){const[px,py]=bpos(x.x,x.y);sx+=px;sy+=py;n++}
+ if(!n)return;const hq=b.E[0],[hx,hy]=bpos(hq.x,hq.y),z=bz||1,cx=(sx/n*.7+hx*.3)*z,cy=(sy/n*.7+hy*.3)*z;
+ const tl=Math.max(0,Math.min(sc.scrollWidth-sc.clientWidth,cx-sc.clientWidth/2)),tt=Math.max(0,Math.min(sc.scrollHeight-sc.clientHeight,cy-sc.clientHeight/2));
+ sc.scrollLeft+=(tl-sc.scrollLeft)*.08;sc.scrollTop+=(tt-sc.scrollTop)*.08}
+['pointerdown','wheel','touchstart'].forEach(ev=>document.addEventListener(ev,e=>{if(e.target.closest&&e.target.closest('#btscene'))BV.userT=performance.now()},{passive:true,capture:true}));
 function btResize(){
  const V=BV,w=(GB+1)*btw,h=(GB*.5+2.3)*btw,s=btScale();V.scale=s;V.w=w;V.h=h;V.rb=Math.min(3,Math.max(1,Math.round(s*2)/2));
  for(const c of[V.cv,V.dec]){c.width=Math.round(w*s);c.height=Math.round(h*s);c.style.width=w+'px';c.style.height=h+'px'}
@@ -1353,7 +1361,7 @@ function drawBattle(dt){
   if(c){x.lc=c;x.lvb=vb}else{c=x.lc;vb=x.lvb}if(!c)continue;
   const xd=U[x.kind]||{},hid=xd.stl&&!(x.rev>b.time);if(hid)ctx.globalAlpha=x.tm?.12:.38;
   let bob=0;if(x.nav)bob=Math.sin(nw/500+x.ix)*btw*.02;else if(x.fly)bob=Math.sin(nw/420+x.ix)*btw*.035;else if(x.mv&&x.cls==='inf')bob=Math.abs(Math.sin(nw/95+x.ix))*btw*.03;else if(x.mv)bob=Math.sin(nw/60+x.ix)*btw*.006;
-  const dx=px-btw/2+vb[0]*k,dy=py-btw*.95+vb[1]*k-bob,dw=vb[2]*k,dh=vb[3]*k;ctx.drawImage(c,dx,dy,dw,dh);ctx.globalAlpha=1;
+  const us=x.st||x.krk?1:UNS,dx=px+(-btw/2+vb[0]*k)*us,dy=py+(-btw*.95+vb[1]*k)*us-bob,dw=vb[2]*k*us,dh=vb[3]*k*us;ctx.drawImage(c,dx,dy,dw,dh);ctx.globalAlpha=1;
   if(x.nav&&!LITE&&Math.random()<dt*(x.mv?.02:.006))fxAdd({k:'sm',x:px+(Math.random()-.5)*btw*.4,y:py-btw*.02,vx:0,vy:0,life:900,r0:btw*.03,r1:btw*.12,col:'235,248,255'});
   if(x.stun>0&&Math.random()<dt*.02)fxAdd({k:'sp',x:px+(Math.random()-.5)*btw*.3,y:py-btw*(x.st?.4:.2),vx:(Math.random()-.5)*.04*btw,vy:-.02*btw,life:300,col:'127,227,255'});
   if(hid)continue;
@@ -1472,7 +1480,7 @@ function battleFrame(dt){
  if(b.dep&&!b.go){drawBattle(dt);return}
  if(b.td){if(b.gap&&b.gap>performance.now()){drawBattle(dt);if(!b._ut||performance.now()-b._ut>400){b._ut=performance.now();tdUI(b)}return}if(b.gap){b.gap=0;tdUI(b)}}
  if(b.pvp){b.acc=(b.acc||0)+dt/1000*b.speed;let g=0;pvSeed(b,()=>{while(b.acc>=.05&&!b.over&&g++<20000&&b.pvg<20000){b.acc-=.05;b.pvg++;stepBattle(b,.05,pvFx)}})}else{let rem=dt/1000*b.speed;while(rem>0&&!b.over){const s=Math.min(.05,rem);stepBattle(b,s,btFx);rem-=s}}
- drawBattle(dt);
+ drawBattle(dt);btCam(b);
  if(b.over===2&&b.siege&&nextWave(b)){if(b.td){b.dp+=220+60*b.wave;b.gap=performance.now()+7000;$('#btname').innerHTML='🗼 Defensa de la torre · oleada '+b.wave;sfx('alert');tdUI(b)}}else if(b.over){b.done=1;depUI(Object.assign(b,{dep:0}));
   if(b.over===1&&!b.raid&&!b.visit&&!(b.e&&b.e.kr)){b.slowT=performance.now();btFinale(b);const hq=b.E[0],[px,py]=bpos(hq.x,hq.y);boom(px,py-btw*.3,2.6,0);setTimeout(()=>boom(px+btw*.3,py-btw*.1,1.6,0),180);setTimeout(()=>boom(px-btw*.3,py-btw*.5,1.8,0),380);
    if(BV)BV.shake=16;const f=$('#btflash');if(f){f.classList.remove('on');void f.offsetWidth;f.classList.add('on')}sfx('boom');setTimeout(()=>endBattle(b),1750)}
@@ -1659,7 +1667,7 @@ function rankHTML(){
 }
 /* ---------- islas ---------- */
 let islSig='';
-const islPos=i=>{const W=N*100,H=N*50+220,Q=N*25+110;return[[100,125],[W-100,125],[300,85],[W-300,85],[110,H-125],[W-110,H-125],[-150,Q-130],[W+150,Q-130],[-150,Q+140],[W+150,Q+140]][i]};
+const islPos=i=>{const W=N*100,H=N*50+220,Q=N*25+110;return[[-10,100],[W+10,100],[250,48],[W-250,48],[110,H-125],[W-110,H-125],[-150,Q-130],[W+150,Q-130],[-150,Q+140],[W+150,Q+140]][i]};
 function islTick(){const s=tw+'|'+N+'|'+S.isl.map((x,i)=>x.o+(islReady(i)?'R':'')+(x.o<0?islRate(i):islDef(i))).join();if(s!==islSig){islSig=s;renderIsl()}}
 function renderIsl(){
  const k=tw/100;let h='';
@@ -2398,13 +2406,19 @@ async function pvEnd(b){
  if(b.live){MQ.unshift({html,btns});nextModal()}else modal(html,btns);
 }
 /* avisos de defensas: quién te atacó mientras no estabas */
+let NBDEF=0;
 async function nbDefenses(){
- if(!SB||!CU)return;try{
+ if(!SB||!CU||NBDEF)return;NBDEF=1;try{
+  let seen=[];try{seen=JSON.parse(localStorage.getItem('wow-seen')||'[]')}catch(e){}
   const {data}=await SB.from('attacks').select('id,attacker,win,d_def,created_at').eq('defender',CU.id).eq('def_seen',false).order('created_at',{ascending:false}).limit(10);
-  if(!data||!data.length)return;const ids=[...new Set(data.map(a=>a.attacker))];const {data:ps}=await SB.from('profiles').select('id,alias,avatar').in('id',ids);const m={};(ps||[]).forEach(p=>m[p.id]=p);
-  let h='<div class="mtitle">🛡️ Mientras no estabas</div>';data.forEach(a=>{const p=m[a.attacker]||{};h+=`<div class="erow"><div class="efc">${avHTML(p.avatar,'navi')}</div><div class="einfo"><b>${esc(p.alias||'Jugador')}</b><div class="small">${a.win?'Te ganó':'Lo frenaste'} · 🏆 ${a.d_def>0?'+':''}${a.d_def}</div></div></div>`});
-  modal(h,[['Entendido',()=>{SB.rpc('mark_seen',{p_ids:data.map(a=>a.id)})},'gold']]);
- }catch(e){}
+  const list=(data||[]).filter(a=>!seen.includes(a.id));if(!list.length)return;
+  // se marcan como vistos ANTES de mostrarlos: así el aviso sale una sola vez
+  seen=seen.concat(list.map(a=>a.id)).slice(-200);try{localStorage.setItem('wow-seen',JSON.stringify(seen))}catch(e){}
+  SB.rpc('mark_seen',{p_ids:list.map(a=>a.id)}).then(()=>{},()=>{});
+  const ids=[...new Set(list.map(a=>a.attacker))];const {data:ps}=await SB.from('profiles').select('id,alias,avatar').in('id',ids);const m={};(ps||[]).forEach(p=>m[p.id]=p);
+  let h='<div class="mtitle">🛡️ Mientras no estabas</div>';list.forEach(a=>{const p=m[a.attacker]||{};h+=`<div class="erow"><div class="efc">${avHTML(p.avatar,'navi')}</div><div class="einfo"><b>${esc(p.alias||'Jugador')}</b><div class="small">${a.win?'Te ganó':'Lo frenaste'} · 🏆 ${a.d_def>0?'+':''}${a.d_def}</div></div></div>`});
+  modal(h,[['Entendido',()=>{},'gold']]);
+ }catch(e){}finally{NBDEF=0}
 }
 document.addEventListener('click',e=>{const t=e.target.closest('[data-nb]');if(!t)return;const k=t.dataset.nb,v=t.dataset.v;
  if(k==='in'||k==='up'||k==='forgot')nbAuth(k);else if(k==='out'){nbUpload(1).finally(()=>SB.auth.signOut())}else if(k==='sync'){NBX.dirty=1;nbUpload(1).then(()=>{nbPublish(1);openCuenta()})}
