@@ -938,7 +938,22 @@ function setMode(){
  render();
 }
 $('#bancancel').onclick=()=>{PL=null;MV=null;setMode()};
-$('#map').addEventListener('click',e=>{if(now()-dragged<300)return;const v=e.target.closest('[data-ev]');if(v){tapEnt(+v.dataset.ev);return}const s=e.target.closest('[data-isl]');if(s){tapIsl(+s.dataset.isl);return}const t=e.target.closest('[data-t]');if(t)tap(+t.dataset.t)});
+/* elegir bien el edificio tocado aunque estén pegados:
+   se mira el dibujo de verdad (píxel por píxel) de cada edificio bajo el dedo, del de adelante al de atrás,
+   y gana el primero que tiene dibujo en ese punto. Si ninguno, el casillero tocado. */
+const ALPHA=new Map();
+function alphaAt(img,u,v){let a=ALPHA.get(img.src);if(!a){try{const w=Math.min(160,img.naturalWidth||0),h=Math.round(w*(img.naturalHeight||1)/(img.naturalWidth||1));if(!w)return 1;const c=document.createElement('canvas');c.width=w;c.height=h;const g=c.getContext('2d');g.drawImage(img,0,0,w,h);a={w,h,d:g.getImageData(0,0,w,h).data};ALPHA.set(img.src,a);if(ALPHA.size>300)ALPHA.delete(ALPHA.keys().next().value)}catch(e){return 1}}
+ const x=Math.floor(u*a.w),y=Math.floor(v*a.h);if(x<0||y<0||x>=a.w||y>=a.h)return 0;return a.d[(y*a.w+x)*4+3]/255}
+function pickTile(e,fall){
+ try{if(PL||MV!=null)return fall;const px=e.clientX,py=e.clientY,c=[];
+  for(const k in els){const el=els[k],i=+k;if(!S.g[i]||!el.isConnected)continue;const im=el.querySelector('img.bimg'),sv=el.querySelector('svg.art'),t=im||sv;if(!t)continue;const r=t.getBoundingClientRect();if(px<r.left||px>r.right||py<r.top||py>r.bottom)continue;
+   const u=(px-r.left)/r.width,v=(py-r.top)/r.height;let op;if(im&&im.complete)op=alphaAt(im,u,v)>.35;else{const hx=Math.abs(u-.5)*2,hy=v*1.2;op=hy>.26&&hy<1.2&&hx<=1&&(hy<.95?hy>.52-hx*.26:hy<.95+(1-hx)*.25)||hy>.4}
+   if(op)c.push(i)}
+  if(c.length){c.sort((a,b)=>zOf(b)-zOf(a));return c[0]}
+  const m=$('#map'),R=m.getBoundingClientRect(),k=MW/R.width,lx=(px-R.left)*k,ly=(py-R.top)*k,X=lx-OX-(N-1)*tw/2-tw/2,Y=ly-top0-th/2,cc=Math.round((X/(tw/2)+Y/(th/2))/2),rr=Math.round((Y/(th/2)-X/(tw/2))/2);
+  return cc>=0&&rr>=0&&cc<N&&rr<N?rr*N+cc:fall}catch(_){return fall}
+}
+$('#map').addEventListener('click',e=>{if(now()-dragged<300)return;const v=e.target.closest('[data-ev]');if(v){tapEnt(+v.dataset.ev);return}const s=e.target.closest('[data-isl]');if(s){tapIsl(+s.dataset.isl);return}const t=e.target.closest('[data-t]');if(t){const k=pickTile(e,+t.dataset.t);tap(k)}});
 function tap(i){
  const b=S.g[i];
  if(PL){if(b){toast('Ese lugar está ocupado');return}placeAt(i);return}
@@ -2339,7 +2354,7 @@ function openCuenta(msg){
  }else{
   const t=NBX.last?new Date(NBX.last).toLocaleTimeString():'todavía no';
   h=`<div class="istat"><b>Conectado</b><div class="small">${esc(CU.email||'')} <i>(solo vos lo ves)</i></div><div class="small">Último guardado en la nube: ${t}${NBX.err?' · ⚠️ '+NBX.err:''}</div></div>
-  <button class="btn gold" data-nb="sync">☁️ Guardar ahora</button><button class="btn" data-nb="jug">🔎 Buscar jugadores</button><button class="btn" data-nb="me">👤 Ver mi perfil público</button><button class="btn" data-nb="pw">🔑 Cambiar contraseña</button><button class="btn red" data-nb="out">Cerrar sesión</button>
+  <button class="btn gold" data-nb="sync">☁️ Guardar ahora</button><button class="btn" data-nb="jug">🔎 Buscar jugadores</button><button class="btn" data-nb="hist">📜 Historial de ataques</button><button class="btn" data-nb="me">👤 Ver mi perfil público</button><button class="btn" data-nb="pw">🔑 Cambiar contraseña</button><button class="btn red" data-nb="out">Cerrar sesión</button>
   <p class="small">Tu alias es el nombre de tu perfil (Menú → Perfil). Tiene que tener entre 3 y 16 letras y no puede repetirse.</p>`;
  }
  openSheet('cuenta','☁️ Cuenta',h);
@@ -2353,34 +2368,52 @@ async function nbAuth(kind){
  else{const {error}=await SB.auth.signInWithPassword({email:em,password:pw});if(error)openCuenta(/confirm/i.test(error.message)?'Primero confirmá tu correo (revisá tu bandeja)':'Correo o contraseña incorrectos');}
 }
 /* ---------- buscador de jugadores y perfiles públicos ---------- */
-const PCOLS='id,alias,avatar,motto,level,power,trophies,island,spec,updated_at';
+const PCOLS='id,alias,avatar,motto,level,power,trophies,island,spec,shield_until,updated_at';
 async function openJug(q){
  if(!SB){openCuenta();return}
  NBX.q=q==null?NBX.q:q;let rows=[];
- try{let qq=SB.from('profiles').select('id,alias,avatar,level,trophies,power').not('alias','is',null).order('trophies',{ascending:false}).limit(30);
+ try{let qq=SB.from('profiles').select('id,alias,avatar,level,trophies,power,shield_until').not('alias','is',null).order('trophies',{ascending:false}).limit(30);
   if(NBX.q)qq=qq.ilike('alias',NBX.q.replace(/[%_\\]/g,'')+'%');const {data}=await qq;rows=data||[]}catch(e){}
  let h=`<div class="row2"><input id="nbq" class="inp" placeholder="Buscar por alias" value="${esc(NBX.q)}"><button class="btn gold" data-nb="q">🔎 Buscar</button></div><div class="cat">${NBX.q?'Resultados':'🏆 Ranking de trofeos'}</div>`;
  if(!rows.length)h+='<p class="small">No encontramos jugadores con ese alias.</p>';
- rows.forEach((r,i)=>{h+=`<div class="erow" data-nb="pf" data-v="${r.id}"><div class="efc">${avHTML(r.avatar,'navi')}</div><div class="einfo"><b>${esc(r.alias)}</b> <span class="tag">Nv ${r.level|0}</span><div class="small">${lgOf(r.trophies)} · 🏆 ${r.trophies|0} · Poder ${fmt(r.power||0)}</div></div>${CU&&r.id===CU.id?'<span class="tag">Vos</span>':''}</div>`});
+ rows.forEach((r,i)=>{h+=`<div class="erow" data-nb="pf" data-v="${r.id}"><div class="efc">${avHTML(r.avatar,'navi')}</div><div class="einfo"><b>${esc(r.alias)}</b> <span class="tag">Nv ${r.level|0}</span><div class="small">${lgOf(r.trophies)} · 🏆 ${r.trophies|0} · Poder ${fmt(r.power||0)}${shLeft(r)?' · 🛡️ '+shTxt(shLeft(r)):''}</div></div>${CU&&r.id===CU.id?'<span class="tag">Vos</span>':''}</div>`});
  openSheet('jug','🔎 Jugadores',h);
 }
-function islandSvg(isl){
- if(!isl||!isl.n||!Array.isArray(isl.b))return '';const n=Math.max(6,Math.min(24,isl.n|0)),W=n*100,H=n*50+90,used={};let defs='',body='';
- const P=i=>{const r=i/n|0,c=i%n;return[(c-r)*50+(n-1)*50,(c+r)*25+80]};
- body+=`<polygon points="${W/2},80 ${W},${80+n*25} ${W/2},${80+n*50} 0,${80+n*25}" fill="#6cbd43" stroke="#3f7f2a" stroke-width="4"/>`;
- const list=isl.b.filter(x=>Array.isArray(x)&&B[x[1]]&&x[0]>=0&&x[0]<n*n).sort((a,b)=>((a[0]/n|0)+a[0]%n)-((b[0]/n|0)+b[0]%n));
- for(const[i,t,l]of list){const lv=Math.max(1,Math.min(7,l|0)),[x,y]=P(i),key=t+'_'+(PIMG[t]?pimgLv(t,lv).length:lv);
-  if(PIMG[t]){if(!used[key]){used[key]=1;defs+=`<g id="ib_${key}">${pimgTag(t,lv)}</g>`}body+=`<use href="#ib_${key}" x="${x}" y="${y-70}"/>`}
-  else body+=`<g transform="translate(${x},${y-70})">${ART[t]?ART[t](Math.min(3,lv)):''}</g>`}
- return `<svg class="pisl" viewBox="0 0 ${W} ${H}"><defs>${defs}</defs>${body}</svg>`;
+/* la isla REAL del jugador: el mismo suelo, vegetación y edificios del juego, en sus casilleros */
+function islandSvg(isl,big){
+ if(!isl||!isl.n||!Array.isArray(isl.b))return '';const n=Math.max(6,Math.min(24,isl.n|0)),W=n*100,E=n*50+110,used={};
+ let g='';try{g=ground(n,100)}catch(e){g=''}
+ const veg=GX.join('').replace(/<div class="veg" style="left:(-?[\d.]+)u;top:(-?[\d.]+)u;width:62u;height:66u[^"]*"><svg viewBox="-30 -58 62 66">([\s\S]*?)<\/svg><\/div>/g,(m,x,y,inner)=>`<svg x="${x}" y="${y}" width="62" height="66" viewBox="-30 -58 62 66" overflow="visible">${inner}</svg>`).replace(/<(div|i|svg) class="(glint|wv|wvt)[\s\S]*?<\/\1>/g,'');
+ g=g.replace(/^<svg [^>]*>/,'').replace(/<\/svg>$/,'');
+ let defs='',body='';const list=isl.b.filter(x=>Array.isArray(x)&&B[x[1]]&&x[0]>=0&&x[0]<n*n).sort((a,b)=>((a[0]/n|0)+a[0]%n)-((b[0]/n|0)+b[0]%n));
+ for(const[i,t,l]of list){const lv=Math.max(1,Math.min(7,l|0)),r=i/n|0,c=i%n,x=(c-r)*50+(n-1)*50,y=(c+r)*25+110-70,key=t+'_'+(PIMG[t]?pimgLv(t,lv).length:lv);
+  const art=PIMG[t]?(used[key]||(used[key]=1,defs+=`<g id="ib_${key}">${pimgTag(t,lv)}</g>`),`<use href="#ib_${key}" x="${x}" y="${y}"/>`):`<g transform="translate(${x},${y})">${ART[t]?ART[t](Math.min(3,lv)):''}</g>`;
+  body+=big?`<g class="pvb" data-bk="${t}" data-bl="${lv}">${art}</g>`:art}
+ let out=`<svg class="pisl" viewBox="-40 -30 ${W+80} ${E+170}" preserveAspectRatio="xMidYMid meet"><defs>${defs}</defs>${g}${veg}${body}</svg>`;
+ // ids únicos para no chocar con el mapa propio
+ const pre='pv'+(big?'B':'S');out=out.replace(/id="([A-Za-z][\w-]*)"/g,`id="${pre}_$1"`).replace(/url\(#([A-Za-z][\w-]*)\)/g,`url(#${pre}_$1)`).replace(/href="#([A-Za-z][\w-]*)"/g,`href="#${pre}_$1"`);
+ return out;
+}
+const shLeft=p=>p&&p.shield_until?Math.max(0,new Date(p.shield_until).getTime()-Date.now()):0;
+const shTxt=ms=>{const m=Math.ceil(ms/60000);return m>=60?Math.floor(m/60)+' h '+(m%60)+' min':m+' min'};
+const ago=d=>{const s=(Date.now()-new Date(d).getTime())/1000;return s<60?'recién':s<3600?'hace '+Math.floor(s/60)+' min':s<86400?'hace '+Math.floor(s/3600)+' h':'hace '+Math.floor(s/86400)+' d'};
+function visitIsland(p){
+ let o=$('#pvis');if(!o){o=document.createElement('div');o.id='pvis';document.body.appendChild(o)}
+ const sh=shLeft(p);o.innerHTML=`<div class="pvh"><div class="efc">${avHTML(p.avatar,'navi')}</div><div class="pvn"><b>${esc(p.alias||'Jugador')}</b><div class="small">Nivel ${p.level|0} · ${lgOf(p.trophies)} · 🏆 ${p.trophies|0}${sh?` · 🛡️ escudo ${shTxt(sh)}`:''}</div></div><button class="qx" id="pvx" title="Cerrar">✕</button></div>
+ <div class="pvw" id="pvw"><div id="pvz">${islandSvg(p.island,1)||'<p class="small" style="color:#fff;padding:20px">Todavía no publicó su isla.</p>'}</div></div>
+ <div class="pvc"><button class="btn pvzb" id="pvm">−</button><span class="small" id="pvt">Tocá un edificio para ver qué es</span><button class="btn pvzb" id="pvp">+</button>${CU&&p.id!==CU.id&&!sh&&p.spec?`<button class="btn red" data-nb="atk" data-v="${p.id}" id="pva">⚔️ Atacar</button>`:''}</div>`;
+ o.classList.add('on');let z=1;const zw=$('#pvz'),w=$('#pvw');const setZ=k=>{const c=[w.scrollLeft+w.clientWidth/2,w.scrollTop+w.clientHeight/2].map((v,i)=>v/(i?zw.offsetHeight:zw.offsetWidth));z=Math.max(1,Math.min(4,k));zw.style.width=(100*z)+'%';requestAnimationFrame(()=>{w.scrollLeft=c[0]*zw.offsetWidth-w.clientWidth/2;w.scrollTop=c[1]*zw.offsetHeight-w.clientHeight/2})};
+ $('#pvp').onclick=()=>setZ(z*1.4);$('#pvm').onclick=()=>setZ(z/1.4);$('#pvx').onclick=()=>o.classList.remove('on');const pa=$('#pva');if(pa)pa.addEventListener('click',()=>o.classList.remove('on'));
+ zw.onclick=e=>{const g=e.target.closest('[data-bk]');if(!g)return;const d=B[g.dataset.bk];if(d)$('#pvt').textContent=`${d.e||''} ${d.n} · nivel ${g.dataset.bl}`};
+ z=1.6;zw.style.width='160%';requestAnimationFrame(()=>requestAnimationFrame(()=>{w.scrollLeft=(zw.offsetWidth-w.clientWidth)/2;w.scrollTop=Math.max(0,(zw.offsetHeight-w.clientHeight)/2)}));
 }
 async function openPerfil(id){
  if(!SB)return;let p=null;try{const {data}=await SB.from('profiles').select(PCOLS).eq('id',id).maybeSingle();p=data}catch(e){}
  if(!p){toast('No encontramos ese perfil');return}
  const me=CU&&p.id===CU.id;let h=`<div class="pfh"><div class="pfa">${avHTML(p.avatar,'pfimg')}</div><div><b>${esc(p.alias||'Sin alias')}</b><div class="small">${rankOf(p.level|0)} · Nivel ${p.level|0}</div>${p.motto?`<div class="small">“${esc(p.motto)}”</div>`:''}</div></div>
  <div class="pst"><div>${lgOf(p.trophies).split(' ')[0]}<small>${lgOf(p.trophies).split(' ').slice(1).join(' ')}</small></div><div>🏆 ${p.trophies|0}<small>Trofeos</small></div><div>⚡ ${fmt(p.power||0)}<small>Poder</small></div><div>🏠 ${(p.island&&p.island.b||[]).length}<small>Edificios</small></div></div>
- <div class="cat">🏝️ Su isla</div><div class="pislw">${islandSvg(p.island)||'<p class="small">Todavía no publicó su isla.</p>'}</div>`;
- if(!me&&p.spec)h+=CU?`<button class="btn red" data-nb="atk" data-v="${p.id}">⚔️ Atacar</button><p class="small">Atacás una copia guardada de su isla, aunque esté desconectado. El servidor resuelve el combate y reparte trofeos y botín.</p>`:`<button class="btn gold" data-nb="cuenta">Iniciá sesión para atacar</button>`;
+ ${shLeft(p)?`<div class="pshield">🛡️ Tiene escudo por <b>${shTxt(shLeft(p))}</b>: no se lo puede atacar hasta entonces.</div>`:''}<div class="cat">🏝️ ${me?'Tu isla':'Su isla'}</div><div class="pislw">${islandSvg(p.island)||'<p class="small">Todavía no publicó su isla.</p>'}</div>${p.island?`<button class="btn" data-nb="vis">👁️ Visitar la isla completa</button>`:''}`;
+ if(!me&&p.spec&&shLeft(p))h+='';else if(!me&&p.spec)h+=CU?`<button class="btn red" data-nb="atk" data-v="${p.id}">⚔️ Atacar</button><p class="small">Atacás una copia guardada de su isla, aunque esté desconectado. El servidor resuelve el combate y reparte trofeos y botín.</p>`:`<button class="btn gold" data-nb="cuenta">Iniciá sesión para atacar</button>`;
  NBX.prof=p;openSheet('perfil','👤 '+esc(p.alias||'Jugador'),h);
 }
 /* ---------- ataque entre jugadores ---------- */
@@ -2394,6 +2427,17 @@ async function pvAttack(army,e,live,rc){
  catch(err){if(rc)gain({f:rc});hud();toast('⚠️ '+(err.message||'No se pudo atacar'));return}
  const b=pvBattle(r.army,r.spec,r.mul,r.seed);b.e={n:e.n,f:e.f,lvl:e.lvl};b.army=r.army;b.live=live;b.pvRes=r;
  runBattle(b,`Vos ⚔️ ${esc(e.n)} · 🌐 Jugador`);
+}
+async function openHist(){
+ if(!SB||!CU){openCuenta();return}let rows=[],me=null;
+ try{const {data}=await SB.from('attacks').select('id,attacker,defender,win,d_att,d_def,loot,created_at').or(`attacker.eq.${CU.id},defender.eq.${CU.id}`).order('created_at',{ascending:false}).limit(40);rows=data||[];
+  const ids=[...new Set(rows.flatMap(a=>[a.attacker,a.defender]).concat([CU.id]))];const {data:ps}=await SB.from('profiles').select('id,alias,avatar,trophies,shield_until').in('id',ids);NBX.pm={};(ps||[]).forEach(p=>NBX.pm[p.id]=p);me=NBX.pm[CU.id]}catch(e){}
+ const sh=shLeft(me);let h=`<div class="istat"><b>🏆 ${me?me.trophies|0:0} trofeos</b><div class="small">${sh?`🛡️ Tenés escudo por ${shTxt(sh)}: nadie te puede atacar.`:'Sin escudo: te pueden atacar. Si te ganan, recibís 20 min de escudo.'}</div></div>`;
+ const won=rows.filter(a=>a.attacker===CU.id?a.win:!a.win).length;if(rows.length)h+=`<p class="small">${rows.length} combates · ${won} ganados · ${rows.length-won} perdidos</p>`;
+ if(!rows.length)h+='<p class="small">Todavía no hay ataques. Buscá rivales en 🔎 Jugadores.</p>';
+ for(const a of rows){const atk=a.attacker===CU.id,o=NBX.pm[atk?a.defender:a.attacker]||{},ok=atk?a.win:!a.win,d=atk?a.d_att:a.d_def;
+  h+=`<div class="erow hrow ${ok?'hw':'hl'}" data-nb="pf" data-v="${atk?a.defender:a.attacker}"><div class="efc">${avHTML(o.avatar,'navi')}</div><div class="einfo"><b>${atk?'⚔️ Atacaste a ':'🛡️ Te atacó '}${esc(o.alias||'Jugador')}</b><div class="small">${ok?'✅ Ganaste':'❌ Perdiste'} · 🏆 ${d>0?'+':''}${d}${atk&&a.win&&a.loot&&a.loot.c?' · 💰 '+fmt(a.loot.c):''} · ${ago(a.created_at)}</div></div></div>`}
+ openSheet('hist','📜 Historial de ataques',h);
 }
 async function pvEnd(b){
  if(!b.pvRes||!SB){$('#bt').classList.remove('on');BT=null;modalOpen=false;return}
@@ -2423,7 +2467,7 @@ async function nbDefenses(){
 document.addEventListener('click',e=>{const t=e.target.closest('[data-nb]');if(!t)return;const k=t.dataset.nb,v=t.dataset.v;
  if(k==='in'||k==='up'||k==='forgot')nbAuth(k);else if(k==='out'){nbUpload(1).finally(()=>SB.auth.signOut())}else if(k==='sync'){NBX.dirty=1;nbUpload(1).then(()=>{nbPublish(1);openCuenta()})}
  else if(k==='jug')openJug();else if(k==='q')openJug((($('#nbq')||{}).value||'').trim().slice(0,16));else if(k==='pf')openPerfil(v);else if(k==='me'&&CU){nbPublish(1).then(()=>openPerfil(CU.id))}
- else if(k==='atk')nbAttack(v);else if(k==='cuenta')openCuenta();else if(k==='pw')nbNewPass();});
+ else if(k==='atk')nbAttack(v);else if(k==='hist')openHist();else if(k==='vis'&&NBX.prof)visitIsland(NBX.prof);else if(k==='cuenta')openCuenta();else if(k==='pw')nbNewPass();});
 document.addEventListener('keydown',e=>{if(e.key==='Enter'&&e.target&&e.target.id==='nbq')openJug(e.target.value.trim().slice(0,16))});
 /* ---------- jefes de rango: uno cada 5 niveles, se vencen una sola vez ---------- */
 const RBOSS=[{l:10,n:'General Hierro',f:'🎖️',p:1.5},{l:15,n:'Mariscal Tormenta',f:'⚡',p:2},{l:20,n:'Emperador de Acero',f:'👑',p:2.6},{l:25,n:'El Último Señor de la Guerra',f:'💀',p:3.4}];

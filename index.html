@@ -694,6 +694,24 @@ img.emi.ef2{width:1.6em;height:1.6em;border-radius:50%;vertical-align:-.45em}
 .isl .itag{font-size:10px!important;line-height:1.15;padding:2px 7px!important;top:92%!important}
 .isl .itag img.emi{width:18px!important;height:18px!important;border-radius:50%;vertical-align:-5px;margin-right:2px}
 .pui .isl .itag{border-image-width:5px!important}
+
+/* visitar isla de otro jugador */
+#pvis{position:fixed;inset:0;z-index:9000;display:none;flex-direction:column;background:radial-gradient(ellipse at 50% 45%,#2bb3c2,#0c5f80 60%,#073a55)}
+#pvis.on{display:flex}
+.pvh{display:flex;align-items:center;gap:10px;padding:10px 12px;background:linear-gradient(#1b2a3b,#101a26);color:#fff;border-bottom:2px solid #c9962e}
+.pvn{flex:1;min-width:0}.pvn b{font:900 18px 'Lilita One',Nunito,sans-serif}.pvn .small{color:#cfd9e3}
+.pvw{flex:1;overflow:auto;-webkit-overflow-scrolling:touch;touch-action:pan-x pan-y}
+#pvz{width:160%;min-width:100%}#pvz .pisl{width:100%;height:auto;display:block}
+.pvb{cursor:pointer}
+.pvc{display:flex;gap:8px;align-items:center;padding:8px 10px;background:#101a26;border-top:2px solid #c9962e}
+.pvc .small{flex:1;color:#fff;text-align:center}.pvc .btn{width:auto;margin:0;padding:8px 14px}
+.pshield{background:#e8f0ff;border:1px solid #9db7e8;color:#1e3f7a;border-radius:12px;padding:8px 10px;margin-bottom:8px;font-size:13px}
+.hrow.hw{border-left:5px solid #3fae4f}.hrow.hl{border-left:5px solid #d6493d}
+
+/* el toque lo resuelve pickTile mirando el dibujo: todo el edificio responde */
+.bld svg.bhit polygon{pointer-events:none}.bld{pointer-events:auto}
+.pvc .btn.pvzb{font:900 24px/1 Nunito,sans-serif;min-width:48px;color:#fff}
+#pvz{display:flex;align-items:center;min-height:100%}
 </style>
 </head>
 <body>
@@ -750,20 +768,20 @@ img.emi.ef2{width:1.6em;height:1.6em;border-radius:50%;vertical-align:-.45em}
 <div id="toasts"></div><div id="flyl"></div>
 
 <script src="supabase.js?v=2.119.1"></script>
-<script src="config.js?v=7cade098"></script>
+<script src="config.js?v=d5de93f0"></script>
 <script>
 /* Carga las imágenes (quedan guardadas en el celular) y después arranca el juego */
 (async()=>{const bar=document.getElementById('loadi'),txt=document.getElementById('loadt');
  try{const R=document.documentElement;R.style.setProperty('--ui-carga','url(carga.jpg)');R.style.setProperty('--ui-logo','url(logo.webp)');R.classList.add('pui')}catch(e){}
  try{if(navigator.serviceWorker)navigator.serviceWorker.register('sw.js').catch(()=>{})}catch(e){}
  const toData=u=>fetch(u).then(r=>{if(!r.ok)throw new Error(u);return r.blob()}).then(b=>new Promise((ok,ko)=>{const f=new FileReader();f.onload=()=>ok(f.result);f.onerror=ko;f.readAsDataURL(b)}));
- try{const m=await (await fetch('imagenes.json?v=7cade098')).json(),jobs=[];let done=0,total=0;const out={PIMG:{},ENV:{}};
+ try{const m=await (await fetch('imagenes.json?v=d5de93f0')).json(),jobs=[];let done=0,total=0;const out={PIMG:{},ENV:{}};
   let miss=[];const add=(u,set)=>{total++;jobs.push(toData(u).then(d=>{set(d)},()=>{miss.push(u)}).finally(()=>{done++;if(bar)bar.style.width=Math.round(8+88*done/total)+'%';if(txt)txt.textContent='Cargando gráficos… '+Math.round(100*done/total)+'%'}))};
   for(const k in m.PIMG){out.PIMG[k]={};for(const l in m.PIMG[k])add(m.PIMG[k][l],d=>out.PIMG[k][l]=d)}
   for(const k in m.ENV)add(m.ENV[k],d=>out.ENV[k]=d);
   await Promise.all(jobs);window.__IMG=out;if(miss.length)console.warn('Faltan imágenes:',miss);
  }catch(e){window.__IMG={PIMG:{},ENV:{}};if(txt)txt.textContent='Sin conexión: cargando sin gráficos'}
- const s=document.createElement('script');s.src='game.js?v=7cade098';s.onerror=()=>{if(txt)txt.innerHTML='⚠️ No se encontró <b>game.js</b>. Revisá que esté subido en la misma carpeta que index.html.'};document.body.appendChild(s);
+ const s=document.createElement('script');s.src='game.js?v=d5de93f0';s.onerror=()=>{if(txt)txt.innerHTML='⚠️ No se encontró <b>game.js</b>. Revisá que esté subido en la misma carpeta que index.html.'};document.body.appendChild(s);
 })();
 </script>
 </body>
