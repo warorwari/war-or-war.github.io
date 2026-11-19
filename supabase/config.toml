@@ -1,0 +1,4 @@
+# Solo lo necesario para desplegar la función con la CLI de Supabase.
+[functions.pvp]
+# La función valida la sesión por su cuenta (auth.getUser), así funciona con las claves nuevas y las clásicas.
+verify_jwt = false

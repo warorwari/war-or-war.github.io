@@ -1,0 +1,20 @@
+# Convierte las imágenes de assets/ (clave_nivel.png, 1024x1024, rombo de base al 80% del ancho)
+# en src/12-imagenes.js con las imágenes comprimidas adentro.
+import glob,os,io,base64,re
+from PIL import Image
+out={}
+for f in sorted(glob.glob('assets/*.png')):
+    m=re.match(r'([a-z0-9]+)_(\d)\.png$',os.path.basename(f))
+    if not m: continue
+    k,l=m.group(1),int(m.group(2))
+    im=Image.open(f).convert('RGBA').resize((320,320),Image.LANCZOS)
+    b=io.BytesIO();im.save(b,'WEBP',quality=84,method=6)
+    out.setdefault(k,{})[l]='data:image/webp;base64,'+base64.b64encode(b.getvalue()).decode()
+js='/* ---------- imágenes pintadas de los edificios (assets/clave_nivel.png) ---------- */\n'
+js+='const PIMG={'+','.join(f"{k}:{{{','.join(f'{l}:\"{u}\"' for l,u in sorted(v.items()))}}}" for k,v in out.items())+'};\n'
+js+=r"""const pimgLv=(k,l)=>{const v=PIMG[k],n=Object.keys(v).length;return v[n>=3?(l<=2?1:l<=5?2:3):Math.min(n,l>=3?2:1)]||v[1]};
+const pimgTag=(k,l)=>`<image href="${pimgLv(k,l)}" x="-12.45" y="-2.1" width="125" height="125"/>`;
+for(const k in PIMG)if(ART[k])ART[k]=lv=>pimgTag(k,lv>=3?6:lv>=2?3:1);
+"""
+open('src/12-imagenes.js','w').write(js)
+print({k:list(v) for k,v in out.items()},len(js)//1024,'KB')
