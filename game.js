@@ -2380,7 +2380,8 @@ function pvTarget(p){const sp=sanSpec(p.spec);if(!sp)return null;return{n:p.alia
 function nbAttack(id){const p=NBX.prof;if(!p||p.id!==id)return;const e=pvTarget(p);if(!e){toast('Su isla no se puede atacar todavía');return}PVT={e};openSelect('pv')}
 async function pvAttack(army,e,live,rc){
  toast('⚔️ Conectando con el servidor…');
- let r=null;try{await nbUpload(1);const {data,error}=await SB.functions.invoke('pvp',{body:{action:'attack',defender:e.pvp,army}});
+ let r=null;try{await nbUpload(1);const {data:ss}=await SB.auth.getSession();const tok=ss&&ss.session&&ss.session.access_token;if(!tok)throw new Error('Tu sesión se cerró: volvé a entrar en Menú → Cuenta');
+  const {data,error}=await SB.functions.invoke('pvp',{body:{action:'attack',defender:e.pvp,army},headers:{Authorization:'Bearer '+tok}});
   if(error){let m='';try{m=(await error.context.json()).error}catch(_){}throw new Error(m||'No se pudo atacar')}r=data}
  catch(err){if(rc)gain({f:rc});hud();toast('⚠️ '+(err.message||'No se pudo atacar'));return}
  const b=pvBattle(r.army,r.spec,r.mul,r.seed);b.e={n:e.n,f:e.f,lvl:e.lvl};b.army=r.army;b.live=live;b.pvRes=r;

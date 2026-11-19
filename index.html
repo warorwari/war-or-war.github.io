@@ -746,20 +746,20 @@ img.emi.ef2{width:1.6em;height:1.6em;border-radius:50%;vertical-align:-.45em}
 <div id="toasts"></div><div id="flyl"></div>
 
 <script src="supabase.js?v=2.119.1"></script>
-<script src="config.js?v=5dcb596a"></script>
+<script src="config.js?v=8faa4737"></script>
 <script>
 /* Carga las imágenes (quedan guardadas en el celular) y después arranca el juego */
 (async()=>{const bar=document.getElementById('loadi'),txt=document.getElementById('loadt');
  try{const R=document.documentElement;R.style.setProperty('--ui-carga','url(carga.jpg)');R.style.setProperty('--ui-logo','url(logo.webp)');R.classList.add('pui')}catch(e){}
  try{if(navigator.serviceWorker)navigator.serviceWorker.register('sw.js').catch(()=>{})}catch(e){}
  const toData=u=>fetch(u).then(r=>{if(!r.ok)throw new Error(u);return r.blob()}).then(b=>new Promise((ok,ko)=>{const f=new FileReader();f.onload=()=>ok(f.result);f.onerror=ko;f.readAsDataURL(b)}));
- try{const m=await (await fetch('imagenes.json?v=5dcb596a')).json(),jobs=[];let done=0,total=0;const out={PIMG:{},ENV:{}};
+ try{const m=await (await fetch('imagenes.json?v=8faa4737')).json(),jobs=[];let done=0,total=0;const out={PIMG:{},ENV:{}};
   let miss=[];const add=(u,set)=>{total++;jobs.push(toData(u).then(d=>{set(d)},()=>{miss.push(u)}).finally(()=>{done++;if(bar)bar.style.width=Math.round(8+88*done/total)+'%';if(txt)txt.textContent='Cargando gráficos… '+Math.round(100*done/total)+'%'}))};
   for(const k in m.PIMG){out.PIMG[k]={};for(const l in m.PIMG[k])add(m.PIMG[k][l],d=>out.PIMG[k][l]=d)}
   for(const k in m.ENV)add(m.ENV[k],d=>out.ENV[k]=d);
   await Promise.all(jobs);window.__IMG=out;if(miss.length)console.warn('Faltan imágenes:',miss);
  }catch(e){window.__IMG={PIMG:{},ENV:{}};if(txt)txt.textContent='Sin conexión: cargando sin gráficos'}
- const s=document.createElement('script');s.src='game.js?v=5dcb596a';s.onerror=()=>{if(txt)txt.innerHTML='⚠️ No se encontró <b>game.js</b>. Revisá que esté subido en la misma carpeta que index.html.'};document.body.appendChild(s);
+ const s=document.createElement('script');s.src='game.js?v=8faa4737';s.onerror=()=>{if(txt)txt.innerHTML='⚠️ No se encontró <b>game.js</b>. Revisá que esté subido en la misma carpeta que index.html.'};document.body.appendChild(s);
 })();
 </script>
 </body>
